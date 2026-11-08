@@ -1,0 +1,44 @@
+name: Publish game
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify published files
+        run: |
+          test -f index.html
+          if find . -path './.git' -prune -o -type f \( -name '*.map' -o -name '*.ts' -o -name '*.tsx' \) -print | grep -q .; then
+            echo 'Unexpected source files in publication'
+            exit 1
+          fi
+          if grep -R -E 'sourceMappingURL=' --include='*.js' --include='*.css' assets; then
+            echo 'Unexpected source map reference in publication'
+            exit 1
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4
